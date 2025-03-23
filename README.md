@@ -70,7 +70,11 @@ bcftools view -i 'GT[0]="1/1" && GT[1]="0/1" && GT[2]="0/1" && CHROM !~ "X|Y"' \
     -s "${proband},${mother},${father}" "$joint_vcf" -Oz -o "$trio_dir/${proband}_AR.vcf.gz"
 ```
 
-## Part 3: X-Linked Recessive Inheritance ===
+## Part 3: X-Linked Recessive Inheritance
+Find variants that are:
+ On X chromosome:
+ - Homozygous or hemizygous in male proband
+ - Heterozygous in mother
 Code:
 ```r
 bcftools view -i 'CHROM="X" && (GT[0]="1/1" || GT[0]="1") && GT[1]="0/1"' \
@@ -79,10 +83,10 @@ bcftools view -i 'CHROM="X" && (GT[0]="1/1" || GT[0]="1") && GT[1]="0/1"' \
 
 ## Part 4: Autosomal Dominant Inheritance
 Objective:
-Find variants that are:
-Heterozygous (0/1) in proband
-Also heterozygous in at least one parent
-Located on autosomes
+  Find variants that are:
+  - Heterozygous (0/1) in proband
+  - Also heterozygous in at least one parent
+  - Located on autosomes
 Code:
 ```r
 bcftools view -i 'CHROM !~ "X|Y" && GT[0]="0/1" && (GT[1]="0/1" || GT[2]="0/1")' \
