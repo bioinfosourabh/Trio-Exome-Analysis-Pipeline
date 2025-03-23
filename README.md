@@ -23,6 +23,8 @@
 # Output: <sample>annotated_filterd.vcf files per sample and joint VCF for cohort.
 
 ## Part 0: Set Up Sample Info and File Paths
+ Objective:
+ Define the proband, mother, and father sample IDs and point to their annotated, filtered VCFs (from previous germline analysis).
 Code:
 ```r
 # Define sample names (replace with real sample IDs)
@@ -46,7 +48,9 @@ trio_dir="${Dir_vcf}/Trio_Analysis"
 mkdir -p "$trio_dir"
 ```
 
-## Part 1: De Novo Variant Detection ===
+## Part 1: De Novo Variant Detection
+Objective:
+Find variants that are present in the proband but absent in both parents based on position and alleles.
 Code:
 ```r
 awk 'BEGIN{OFS=FS="\t"} !/^#/ {print $1, $2, $4, $5}' "$mother_vcf" > "$trio_dir/mother_variants.tsv"
@@ -63,7 +67,12 @@ awk 'BEGIN{
 }' "$proband_vcf" > "$trio_dir/${proband}_denovo.vcf"
 ```
 
-## Part 2: Autosomal Recessive Inheritance ===
+## Part 2: Autosomal Recessive Inheritance
+Objective:
+  Find variants that are:
+  - Homozygous (1/1) in the proband
+  - Heterozygous (0/1) in both parents
+  - Located on autosomes (chr1–22)
 Code:
 ```r
 bcftools view -i 'GT[0]="1/1" && GT[1]="0/1" && GT[2]="0/1" && CHROM !~ "X|Y"' \
