@@ -78,6 +78,11 @@ bcftools view -i 'CHROM="X" && (GT[0]="1/1" || GT[0]="1") && GT[1]="0/1"' \
 ```
 
 ## Part 4: Autosomal Dominant Inheritance
+Objective:
+Find variants that are:
+Heterozygous (0/1) in proband
+Also heterozygous in at least one parent
+Located on autosomes
 Code:
 ```r
 bcftools view -i 'CHROM !~ "X|Y" && GT[0]="0/1" && (GT[1]="0/1" || GT[2]="0/1")' \
@@ -86,9 +91,10 @@ bcftools view -i 'CHROM !~ "X|Y" && GT[0]="0/1" && (GT[1]="0/1" || GT[2]="0/1")'
 
 ## Part 5: Mosaicism Detection (Parental Mosaic)
 Objective:
-Identify cases where:
-Variant is present in the proband
-Variant has low allele balance (10–30%) in one parent, suggesting mosaicism
+  Identify cases where:
+ - Variant is present in the proband
+ - Variant has low allele balance (10–30%) in one parent, suggesting mosaicism
+
 Code:
 ```r
 bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t[%GT\t%AD]\n' \
