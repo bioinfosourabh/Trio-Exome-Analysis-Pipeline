@@ -71,8 +71,9 @@ bcftools view -i 'GT[0]="1/1" && GT[1]="0/1" && GT[2]="0/1" && CHROM !~ "X|Y"' \
 ```
 
 ## Part 3: X-Linked Recessive Inheritance
-Find variants that are:
- On X chromosome:
+Objective:  
+  Find variants that are:
+ - On X chromosome
  - Homozygous or hemizygous in male proband
  - Heterozygous in mother
 Code:
