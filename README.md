@@ -22,8 +22,9 @@
 # This generates filtered, annotated VCF files for each sample.
 # Output: <sample>annotated_filterd.vcf files per sample and joint VCF for cohort.
 
-# === Part 0: Set Up Sample Info and File Paths ===
-
+## Part 0: Set Up Sample Info and File Paths
+Code:
+```r
 # Define sample names (replace with real sample IDs)
 proband="proband_sample_id"
 mother="mother_sample_id"
@@ -43,10 +44,11 @@ joint_vcf="${Dir_vcf}/cohort_vqsr.vcf.gz"
 # Output directory
 trio_dir="${Dir_vcf}/Trio_Analysis"
 mkdir -p "$trio_dir"
+```
 
-
-# === Part 1: De Novo Variant Detection ===
-
+## Part 1: De Novo Variant Detection ===
+Code:
+```r
 awk 'BEGIN{OFS=FS="\t"} !/^#/ {print $1, $2, $4, $5}' "$mother_vcf" > "$trio_dir/mother_variants.tsv"
 awk 'BEGIN{OFS=FS="\t"} !/^#/ {print $1, $2, $4, $5}' "$father_vcf" > "$trio_dir/father_variants.tsv"
 
@@ -59,38 +61,41 @@ awk 'BEGIN{
   key = $1"\t"$2"\t"$4"\t"$5
   if (!(key in mom) && !(key in dad)) print
 }' "$proband_vcf" > "$trio_dir/${proband}_denovo.vcf"
+```
 
-
-# === Part 2: Autosomal Recessive Inheritance ===
-
+## Part 2: Autosomal Recessive Inheritance ===
+Code:
+```r
 bcftools view -i 'GT[0]="1/1" && GT[1]="0/1" && GT[2]="0/1" && CHROM !~ "X|Y"' \
     -s "${proband},${mother},${father}" "$joint_vcf" -Oz -o "$trio_dir/${proband}_AR.vcf.gz"
+```
 
-
-# === Part 3: X-Linked Recessive Inheritance ===
-
+## Part 3: X-Linked Recessive Inheritance ===
+Code:
+```r
 bcftools view -i 'CHROM="X" && (GT[0]="1/1" || GT[0]="1") && GT[1]="0/1"' \
     -s "${proband},${mother}" "$joint_vcf" -Oz -o "$trio_dir/${proband}_Xlinked.vcf.gz"
+```
 
-
-# === Part 4: Autosomal Dominant Inheritance ===
-
+## Part 4: Autosomal Dominant Inheritance ===
+Code:
+```r
 bcftools view -i 'CHROM !~ "X|Y" && GT[0]="0/1" && (GT[1]="0/1" || GT[2]="0/1")' \
     -s "${proband},${mother},${father}" "$joint_vcf" -Oz -o "$trio_dir/${proband}_Dominant.vcf.gz"
+```
 
-
-# === Part 5: Mosaicism Detection (in mother) ===
-
+## Part 5: Mosaicism Detection (Parental Mosaic)
+Code:
+```r
 bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t[%GT\t%AD]\n' \
     -s "${proband},${mother}" "$joint_vcf" | \
 awk 'BEGIN{OFS="\t"}
 {
-  split($6, mom_ad, ",");
+  split($6, mom_ad, ","); 
   mom_ab = mom_ad[2] / (mom_ad[1] + mom_ad[2] + 1e-6);
   if (($5 == "0/1" || $5 == "1/1") && mom_ab > 0.1 && mom_ab < 0.3)
     print $0, "Mosaic_in_mother", mom_ab
 }' > "$trio_dir/${proband}_mosaic_in_mother.tsv"
 
-
-# === Done ===
 echo "[✔] Trio variant filtering completed. Results stored in $trio_dir"
+```
