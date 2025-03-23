@@ -2,7 +2,7 @@
 
 #!/bin/bash
 
-# =====================================================
+
 # 🧬 Germline + Trio Exome Variant Filtering Pipeline
 # Author: Sourabh Kumar
 # Description:
@@ -13,7 +13,7 @@
 #       • X-linked recessive variants
 #       • Autosomal dominant variants
 #       • Mosaic variants in parents
-# =====================================================
+
 
 # === Germline Analysis Overview ===
 # The initial part of this pipeline performs quality control, alignment,
@@ -77,7 +77,7 @@ bcftools view -i 'CHROM="X" && (GT[0]="1/1" || GT[0]="1") && GT[1]="0/1"' \
     -s "${proband},${mother}" "$joint_vcf" -Oz -o "$trio_dir/${proband}_Xlinked.vcf.gz"
 ```
 
-## Part 4: Autosomal Dominant Inheritance ===
+## Part 4: Autosomal Dominant Inheritance
 Code:
 ```r
 bcftools view -i 'CHROM !~ "X|Y" && GT[0]="0/1" && (GT[1]="0/1" || GT[2]="0/1")' \
@@ -85,6 +85,10 @@ bcftools view -i 'CHROM !~ "X|Y" && GT[0]="0/1" && (GT[1]="0/1" || GT[2]="0/1")'
 ```
 
 ## Part 5: Mosaicism Detection (Parental Mosaic)
+Objective:
+Identify cases where:
+Variant is present in the proband
+Variant has low allele balance (10–30%) in one parent, suggesting mosaicism
 Code:
 ```r
 bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t[%GT\t%AD]\n' \
