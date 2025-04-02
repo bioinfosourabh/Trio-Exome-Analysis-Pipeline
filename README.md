@@ -1,26 +1,26 @@
 # Trio-Exome-Analysis-Pipeline
 
-#!/bin/bash
 
 
-# 🧬 Germline + Trio Exome Variant Filtering Pipeline
-# Author: Sourabh Kumar
-# Description:
-#   - Step 1: Perform germline variant calling and annotation for all samples
-#   - Step 2: Perform trio-based filtering to identify:
-#       • De novo variants
-#       • Autosomal Recessive (AR) variants
-#       • X-linked recessive variants
-#       • Autosomal dominant variants
-#       • Mosaic variants in parents
+
+## 🧬 Germline + Trio Exome Variant Filtering Pipeline
+ Author: Sourabh Kumar
+ Description:
+   - Step 1: Perform germline variant calling and annotation for all samples
+   - Step 2: Perform trio-based filtering to identify:
+       • De novo variants
+       • Autosomal Recessive (AR) variants
+       • X-linked recessive variants
+       • Autosomal dominant variants
+       • Mosaic variants in parents
 
 
-# === Germline Analysis Overview ===
-# The initial part of this pipeline performs quality control, alignment,
-# BAM processing, variant calling (GVCFs), joint genotyping,
-# VQSR (Variant Quality Score Recalibration), and annotation.
-# This generates filtered, annotated VCF files for each sample.
-# Output: <sample>annotated_filterd.vcf files per sample and joint VCF for cohort.
+# Germline Analysis Overview
+ The initial part of this pipeline performs quality control, alignment,
+ BAM processing, variant calling (GVCFs), joint genotyping,
+ VQSR (Variant Quality Score Recalibration), and annotation.
+ This generates filtered, annotated VCF files for each sample.
+ Output: <sample>annotated_filterd.vcf files per sample and joint VCF for cohort.
 
 ## Part 0: Set Up Sample Info and File Paths
  Objective:
