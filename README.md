@@ -1,6 +1,7 @@
 # Trio-Exome-Analysis-Pipeline
 ## 🧬 Germline + Trio Exome Variant Filtering Pipeline
  Author: Sourabh Kumar
+
 This repository contains a step-by-step pipeline to perform germline variant analysis followed by trio-based filtering to identify clinically relevant variant types in rare disease or Mendelian disorder studies.
  Description:
    - Step 1: Perform germline variant calling and annotation for all samples
