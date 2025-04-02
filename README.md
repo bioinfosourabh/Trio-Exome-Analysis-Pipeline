@@ -20,6 +20,11 @@ This repository contains a step-by-step pipeline to perform germline variant ana
  This generates filtered, annotated VCF files for each sample.
  Output: <sample>annotated_filterd.vcf files per sample and joint VCF for cohort.
 
+Usage
+```sh
+./germline_variant_calling.sh
+```
+
 ## Part 0: Set Up Sample Info and File Paths
  Objective:
  Define the proband, mother, and father sample IDs and point to their annotated, filtered VCFs (from previous germline analysis).
