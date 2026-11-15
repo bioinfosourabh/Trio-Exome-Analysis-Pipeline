@@ -4,141 +4,111 @@ Germline variant calling followed by trio-based filtering (proband, mother, fath
 
 The pipeline has two parts:
 
-1. **Germline variant calling** for all three samples with [`scripts/germiline-variant-calling.sh`](scripts/germiline-variant-calling.sh): fastp, BWA-MEM, GATK BQSR, HaplotypeCaller GVCFs, joint genotyping and VQSR. This is the same script as in [Germline-Variant-Calling-Pipeline](https://github.com/bioinfosourabh/Germline-Variant-Calling-Pipeline); see that repository for its requirements, configuration and outputs.
-2. **Trio filtering** with bcftools and awk (commands below), which writes candidate lists for:
+1. **Germline variant calling** for all three samples with [`scripts/germline-variant-calling.sh`](scripts/germline-variant-calling.sh): fastp, BWA-MEM, GATK BQSR, HaplotypeCaller GVCFs, joint genotyping and VQSR or hard filters. This is the same script as in [Germline-Variant-Calling-Pipeline](https://github.com/bioinfosourabh/Germline-Variant-Calling-Pipeline); see that repository for details of each step.
+2. **Trio filtering** of the joint VCF with [`scripts/trio_filter.sh`](scripts/trio_filter.sh) (bcftools and awk), which writes candidate lists for:
    - de novo variants
    - autosomal recessive (homozygous) variants
-   - X-linked recessive variants
+   - X-linked recessive variants (male proband)
    - inherited autosomal dominant variants
-   - possible parental (maternal) mosaicism
+   - possible parental mosaicism (mother and father)
 
 ## Requirements
 
-- Everything needed by the germline script (BWA, samtools, fastp, GATK 4.x, bcftools, hg38 reference and resource VCFs)
+- Everything needed by the germline script (BWA, samtools, fastp, bcftools, tabix, GATK 4.x with Java 17, hg38 reference and resource VCFs)
 - `bcftools` and `awk` for the trio filters
 
 ## Part 1: Germline variant calling
 
-Put the FASTQ files of the trio (`<sample>_1.fastq.gz`, `<sample>_2.fastq.gz`) in one directory, set the paths in the script (see the Configuration section of the [germline README](https://github.com/bioinfosourabh/Germline-Variant-Calling-Pipeline#configuration)) and run it from that directory:
+Put the FASTQ files of the trio (`<sample>_1.fastq.gz`, `<sample>_2.fastq.gz`) in one directory, copy [`config.sh`](config.sh) and set the reference and resource paths in it, then run:
 
 ```sh
-cd /path/to/trio_fastq
-bash /path/to/scripts/germiline-variant-calling.sh
+bash scripts/germline-variant-calling.sh -i /path/to/trio_fastq -o /path/to/results -c my_config.sh -t 16
 ```
 
-This produces the joint cohort VCF `Germline_VCF/cohort_vqsr.vcf.gz` and per-sample VCFs `<sample>_filtered.vcf.gz`. Functional annotation is not part of the script; if you want annotated per-sample VCFs, annotate them with a tool of your choice (for example VEP or ANNOVAR) and set the file names in Part 2 accordingly.
+Options: `-i` FASTQ directory, `-o` output directory, `-c` configuration file, `-t` threads, `-s` subset of samples, `-n` dry run, `-f` re-run all steps. Completed steps are skipped when the command is run again, so an interrupted run continues where it stopped. For a trio (three exomes), VQSR has too few variants to train on: set `filter_mode="hard"` in the configuration.
+
+This produces the joint cohort VCF `Germline_VCF/cohort_filtered.vcf.gz`, which Part 2 uses, and per-sample VCFs `Final_VCF/<sample>_filtered.vcf.gz`. Functional annotation is not part of the script; annotate the candidate VCFs from Part 2 with a tool of your choice (for example VEP or ANNOVAR).
 
 ## Part 2: Trio filtering
 
-The commands below are run in Bash after Part 1.
-
 ### Set up sample IDs and paths
 
+Sample names are those in the VCF header (`bcftools query -l cohort_filtered.vcf.gz`):
+
 ```bash
-# Sample names as they appear in the VCF header
-proband="proband_sample_id"
-mother="mother_sample_id"
-father="father_sample_id"
-
-# Directory with the per-sample (annotated) VCFs
-Dir_vcf="/path/to/vcf/files"
-
-# Per-sample input VCFs (uncompressed; adjust names to your files)
-proband_vcf="${Dir_vcf}/${proband}annotated_filterd.vcf"
-mother_vcf="${Dir_vcf}/${mother}annotated_filterd.vcf"
-father_vcf="${Dir_vcf}/${father}annotated_filterd.vcf"
-
-# Joint VCF containing all three samples
-joint_vcf="${Dir_vcf}/cohort_vqsr.vcf.gz"
-
-# Output directory
-trio_dir="${Dir_vcf}/Trio_Analysis"
-mkdir -p "$trio_dir"
+bash scripts/trio_filter.sh \
+    -v /path/to/results/Germline_VCF/cohort_filtered.vcf.gz \
+    -p proband_sample_id -m mother_sample_id -f father_sample_id \
+    -o /path/to/results/Trio_Analysis \
+    -s M            # proband sex: M or F
 ```
+
+The script checks that the three samples are present, extracts them in the order proband, mother, father (and verifies that order), keeps PASS records (`-a` keeps all), and splits multi-allelic records so that each alternate allele is tested separately. Genotype tests use bcftools genotype keywords, so phased (`0|1`) and unphased (`0/1`) genotypes are treated alike.
 
 ### De novo variants
 
-Variants in the proband whose chromosome, position, REF and ALT are absent from both parental VCFs.
+Heterozygous in the proband, homozygous reference in both parents, with at least `-d` reads (default 10) and genotype quality `-g` (default 20) in all three:
 
 ```bash
-awk 'BEGIN{OFS=FS="\t"} !/^#/ {print $1, $2, $4, $5}' "$mother_vcf" > "$trio_dir/mother_variants.tsv"
-awk 'BEGIN{OFS=FS="\t"} !/^#/ {print $1, $2, $4, $5}' "$father_vcf" > "$trio_dir/father_variants.tsv"
-
-awk 'BEGIN{
-  FS=OFS="\t"
-  while ((getline < "'$trio_dir/mother_variants.tsv'") > 0) mom[$0]=1
-  while ((getline < "'$trio_dir/father_variants.tsv'") > 0) dad[$0]=1
-}
-!/^#/ {
-  key = $1"\t"$2"\t"$4"\t"$5
-  if (!(key in mom) && !(key in dad)) print
-}' "$proband_vcf" > "$trio_dir/${proband}_denovo.vcf"
+GT[0]="het" && GT[1]="RR" && GT[2]="RR"
+  && FMT/DP[0]>=10 && FMT/DP[1]>=10 && FMT/DP[2]>=10
+  && FMT/GQ[0]>=20 && FMT/GQ[1]>=20 && FMT/GQ[2]>=20
 ```
+
+The depth and quality requirements avoid calling a variant de novo because a parent was not covered at that site.
 
 ### Autosomal recessive
 
-Homozygous alternate (1/1) in the proband, heterozygous (0/1) in both parents, not on chrX/chrY.
+Homozygous alternate in the proband, heterozygous in both parents, not on chrX, chrY or chrM:
 
 ```bash
-bcftools view -i 'GT[0]="1/1" && GT[1]="0/1" && GT[2]="0/1" && CHROM !~ "X|Y"' \
-    -s "${proband},${mother},${father}" "$joint_vcf" -Oz -o "$trio_dir/${proband}_AR.vcf.gz"
+GT[0]="AA" && GT[1]="het" && GT[2]="het"
 ```
 
 ### X-linked recessive
 
-On chrX, homozygous or hemizygous alternate in the (male) proband and heterozygous in the mother.
+For a male proband (`-s M`): on chrX, hemizygous or homozygous alternate in the proband, heterozygous in the mother, not carried by the father:
 
 ```bash
-bcftools view -i 'CHROM="X" && (GT[0]="1/1" || GT[0]="1") && GT[1]="0/1"' \
-    -s "${proband},${mother}" "$joint_vcf" -Oz -o "$trio_dir/${proband}_Xlinked.vcf.gz"
+CHROM="chrX" && (GT[0]="AA" || GT[0]="A") && GT[1]="het" && (GT[2]="RR" || GT[2]="R")
 ```
 
 ### Autosomal dominant (inherited)
 
-Heterozygous in the proband and in at least one parent, not on chrX/chrY.
+Heterozygous in the proband and in at least one parent, autosomes only:
 
 ```bash
-bcftools view -i 'CHROM !~ "X|Y" && GT[0]="0/1" && (GT[1]="0/1" || GT[2]="0/1")' \
-    -s "${proband},${mother},${father}" "$joint_vcf" -Oz -o "$trio_dir/${proband}_Dominant.vcf.gz"
+GT[0]="het" && (GT[1]="het" || GT[2]="het")
 ```
 
-### Possible maternal mosaicism
+### Possible parental mosaicism
 
-Variants carried by the proband (0/1 or 1/1) where the mother's alternate allele fraction (from AD) is between 10% and 30%. Output columns 5-6 are the proband's GT and AD, and columns 7-8 the mother's.
-
-```bash
-bcftools query -f '%CHROM\t%POS\t%REF\t%ALT[\t%GT\t%AD]\n' \
-    -s "${proband},${mother}" "$joint_vcf" | \
-awk 'BEGIN{OFS="\t"}
-{
-  split($8, mom_ad, ",");
-  mom_ab = mom_ad[2] / (mom_ad[1] + mom_ad[2] + 1e-6);
-  if (($5 == "0/1" || $5 == "1/1") && mom_ab > 0.1 && mom_ab < 0.3)
-    print $0, "Mosaic_in_mother", mom_ab
-}' > "$trio_dir/${proband}_mosaic_in_mother.tsv"
-
-echo "Trio variant filtering completed. Results stored in $trio_dir"
-```
+Variants carried by the proband where a parent's alternate-allele fraction (from `FORMAT/AD`) lies within `-l` (default 0.1 to 0.3), reported separately for the mother and the father.
 
 ## Output
 
-Files in `Trio_Analysis/`:
+Files in the output directory (`-o`):
 
 | File | Content |
 |---|---|
-| `<proband>_denovo.vcf` | candidate de novo variants |
+| `<proband>_trio.vcf.gz` | trio subset of the joint VCF (proband, mother, father), multi-allelic sites split |
+| `<proband>_denovo.vcf.gz` | candidate de novo variants |
 | `<proband>_AR.vcf.gz` | candidate autosomal recessive variants |
-| `<proband>_Xlinked.vcf.gz` | candidate X-linked recessive variants |
+| `<proband>_Xlinked.vcf.gz` | candidate X-linked recessive variants (male proband) |
 | `<proband>_Dominant.vcf.gz` | candidate inherited dominant variants |
-| `<proband>_mosaic_in_mother.tsv` | variants with low maternal allele fraction |
+| `<proband>_mosaic_in_mother.tsv`, `<proband>_mosaic_in_father.tsv` | variants with a low parental allele fraction |
+| `<proband>_trio_summary.tsv` | number of variants per category |
 
 ## Notes and limitations
 
 - These are genotype-based filters for shortlisting candidates, not a variant classification. Candidates still need annotation, population-frequency filtering and clinical review.
-- The genotype filters match unphased genotypes (`0/1`, `1/1`); phased genotypes (`0|1`) are not matched.
-- The de novo filter compares sites only, so it does not account for parental sites with no coverage or low genotype quality.
-- The mosaicism check is implemented for the mother only; a paternal version needs the father's AD column.
-- `GT[0]`, `GT[1]`, `GT[2]` and the awk columns refer to samples by position. Check the sample order of the joint VCF with `bcftools query -l` and make sure it matches proband, mother, father.
+- Compound heterozygous candidates need gene annotation and are not reported.
+- The mosaicism check relies on the allele depths of a germline caller; low-level mosaicism is better assessed with deeper sequencing or a somatic-style caller.
+- Version 2.0 replaced the inline commands of earlier versions with `scripts/trio_filter.sh`. Compared with those commands it checks sample names and order instead of assuming them, handles phased genotypes, uses the joint VCF for de novo calls with parental depth and quality checks, and adds paternal mosaicism. The germline script received the fixes described in the [germline repository](https://github.com/bioinfosourabh/Germline-Variant-Calling-Pipeline) (configuration file, argument parsing, input checks, resumable steps, the previously undefined VQSR variables and fastp output folder).
+
+## License
+
+MIT, see [LICENSE](LICENSE).
 
 ## Author
 
